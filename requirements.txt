@@ -1,0 +1,9 @@
+flask
+gunicorn
+pandas
+numpy
+requests
+yfinance
+# Optionnels (non requis, tout est recodé en numpy/pandas) :
+# pandas-ta
+# TA-Lib

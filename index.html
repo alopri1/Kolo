@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Trading Tool</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lightweight-charts/4.1.3/lightweight-charts.standalone.production.js"></script>
+<style>
+:root{--bg:#0e1117;--card:#171b24;--tx:#e6e8ec;--mu:#8b93a3;--g:#22c55e;--r:#ef4444;--y:#eab308}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px system-ui,sans-serif;padding:12px;max-width:900px;margin:auto}
+.bar{display:flex;gap:6px;flex-wrap:wrap}input,select,button{background:var(--card);color:var(--tx);border:1px solid #2a3040;border-radius:8px;padding:10px;font-size:14px}
+input{flex:1;min-width:120px}button{background:#2563eb;border:0;font-weight:600}
+.card{background:var(--card);border-radius:12px;padding:12px;margin-top:10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.k{color:var(--mu);font-size:12px}.v{font-size:17px;font-weight:700}
+#chart{height:380px}ul{margin:6px 0 0;padding-left:18px}li{margin:3px 0}
+.g{color:var(--g)}.r{color:var(--r)}.y{color:var(--y)}
+</style></head><body>
+<div class="bar">
+<input id="sym" value="EURUSD=X" placeholder="EURUSD=X, ^GSPC, GC=F, BTC-USD, AAPL">
+<select id="itv"><option>5m</option><option>15m</option><option selected>1h</option><option>4h</option><option>1d</option></select>
+<button onclick="go()">Analyser</button></div>
+<div id="out"></div>
+<script>
+const cls=v=>/LONG|HAUSS|haussier|bull/i.test(v)?'g':/SHORT|BAISS|baissier|bear/i.test(v)?'r':'y';
+const box=(k,v)=>`<div><div class="k">${k}</div><div class="v ${cls(String(v))}">${v??'-'}</div></div>`;
+async function go(){
+ const o=document.getElementById('out');o.innerHTML='<div class="card">Analyse en cours…</div>';
+ const r=await fetch(`/api/analyze?symbol=${encodeURIComponent(sym.value)}&interval=${itv.value}`);
+ const d=await r.json();if(d.error){o.innerHTML=`<div class="card r">${d.error}</div>`;return}
+ const s=d.signal,t=d.technical,f=d.fundamental,st=s.setup;
+ o.innerHTML=`
+ <div class="card"><div class="grid">${box('Prix',d.price)}${box('Signal',s.direction)}${box('Score',s.score)}${box('Biais macro',f.bias)}${box('Structure',t.trend)}${box('Événement',t.event)}${box('Zone',t.zone)}${box('Killzone',t.killzone)}</div></div>
+ ${st?`<div class="card"><b>Setup ${st.side}</b><div class="grid">${box('Entrée',st.entry)}${box('SL',st.sl)}${box('TP1',st.tp1)}${box('TP2',st.tp2)}${box('RR TP1',st.rr_tp1)}</div></div>`:''}
+ <div class="card"><div id="chart"></div></div>
+ <div class="card"><b>Pourquoi ce score</b><ul>${s.reasons.map(x=>`<li>${x}</li>`).join('')}</ul></div>
+ <div class="card"><b>Fondamental</b><div class="grid">${Object.entries(f.macro).map(([k,v])=>box(k,v)).join('')}</div><ul>${f.notes.map(x=>`<li>${x}</li>`).join('')}</ul>${f.company?`<pre>${JSON.stringify(f.company,null,1)}</pre>`:''}</div>
+ <div class="card"><b>Règles du playbook</b><ul>${d.playbook.map(x=>`<li>${x}</li>`).join('')}</ul></div>
+ <div class="card k">Outil éducatif, pas un conseil financier. Le trading comporte un risque de perte.</div>`;
+ const c=LightweightCharts.createChart(document.getElementById('chart'),{layout:{background:{color:'#171b24'},textColor:'#8b93a3'},grid:{vertLines:{color:'#222838'},horzLines:{color:'#222838'}},timeScale:{timeVisible:true}});
+ const cs=c.addCandlestickSeries();
+ cs.setData(d.candles.map(x=>({time:x[0],open:x[1],high:x[2],low:x[3],close:x[4]})));
+ const line=(p,col,title,style=2)=>p&&cs.createPriceLine({price:p,color:col,lineWidth:1,lineStyle:style,title});
+ const L=d.levels;line(L.POC,'#eab308','POC');line(L.VAH,'#60a5fa','VAH');line(L.VAL,'#60a5fa','VAL');line(L.VWAP,'#a855f7','VWAP',0);
+ line(L.PDH,'#94a3b8','PDH');line(L.PDL,'#94a3b8','PDL');line(L.EQ,'#475569','EQ');
+ d.pd_arrays.forEach(z=>{const col=z.type=='bull'?'#22c55e':'#ef4444';line(z.top,col,z.kind+' ▲',3);line(z.bottom,col,z.kind+' ▼',3)});
+ if(st){line(st.entry,'#fff','Entrée',0);line(st.sl,'#ef4444','SL',0);line(st.tp1,'#22c55e','TP1',0)}
+ c.timeScale().fitContent();
+}
+go();
+</script></body></html>
